@@ -21,6 +21,8 @@ figure{margin:0} video{width:100%;border-radius:8px;display:block;background:#d5
 figcaption{color:var(--muted);font-size:13px;margin-top:5px}
 .s{font-weight:600} .s3{color:var(--ok)} .s2{color:var(--warn)} .s1,.s0{color:var(--bad)}
 .tag{font-size:12px;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:2px}
+.trio{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px} @media (max-width:720px){.trio{grid-template-columns:1fr}}
+.u{color:var(--muted);font-size:12px}
 .pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px} @media (max-width:720px){.pair{grid-template-columns:1fr}}
 code{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 </style></head><body><main>
@@ -28,7 +30,30 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 <p class="lead">Can we generate our own fitness demo loops (a neutral character doing the exercise, from the catalog description) with HeyGen's HyperFrames? Research run, 3 November 2026. 12 exercises from the real catalog × Opus 5.5, Sonnet 5.5 and Haiku 5.5 (high effort).</p>
 
 <div class="card verdict">
-<b>Verdict: yes, with a framework on top.</b> HyperFrames alone cannot do it: it renders HTML/CSS/JS animation to MP4 deterministically, but has no human motion. Its only "people" are HeyGen avatars (talking presenters, paid credits), not exercise motion. So I built <code>exloop</code> on top of it: a fixed 3D mannequin (Three.js) with forward kinematics plus the physics a model can't do by hand (floor contact, two-point levelling, planted hands and feet via inverse kinematics, balance, seamless loop timing, props, auto camera). The model only writes a small JSON of joint angles over time. With that, <b>every model produced usable loops for 10–12 of the 12 exercises</b>, and HyperFrames renders each one in about 20 s on the Mac Studio, in the app's loop format (1280×720 H.264, no audio, ~85 KB).
+<b>Verdict: yes, with a framework on top.</b> HyperFrames alone cannot do it: it renders HTML/CSS/JS animation to MP4 deterministically, but has no human motion. Its only "people" are HeyGen avatars (talking presenters, paid credits), not exercise motion. So I built <code>exloop</code> on top of it: a fixed 3D mannequin (Three.js) with forward kinematics plus the physics a model can't do by hand (floor contact, two-point levelling, planted hands and feet via inverse kinematics, balance, seamless loop timing, props, auto camera). The model only writes a small JSON of joint angles over time. With that, <b>every model produced usable loops for 10–12 of the 12 exercises</b>, and HyperFrames renders each one in about 20 s on the Mac Studio, in the app's loop format (1280×720 H.264, 60 fps, no audio, ~110 KB).
+</div>
+
+<h2>Update: fluid motion, correct placement, real physics</h2>
+<div class="card">
+<p style="margin-top:0">Same model-written specs as below, a rebuilt motion core. An audit measures every loop frame by frame at 30 fps (seam included). Loops that pass every check: <b>9 → 27 of 36</b>.</p>
+<div class="scroll"><table>
+<tr><th>Check</th><th>Loops within limit (of 36)</th><th>Median</th></tr>
+<tr><td>Peak joint acceleration <span class="u">(m/s², limit 100)</span></td><td class="n">33 → <b>35</b></td><td class="n">8.6 → <b>5.1</b></td></tr><tr><td>Sliding while touching the floor <span class="u">(cm per loop, limit 15)</span></td><td class="n">21 → <b>33</b></td><td class="n">1.1 → <b>0.2</b></td></tr><tr><td>Deepest point under the floor <span class="u">(cm, limit 1)</span></td><td class="n">32 → <b>36</b></td><td class="n">0.0 → <b>0.0</b></td></tr><tr><td>Declared contact hovering <span class="u">(cm, limit 3)</span></td><td class="n">18 → <b>29</b></td><td class="n">3.6 → <b>0.6</b></td></tr><tr><td>Centre of mass outside the feet <span class="u">(cm, limit 5)</span></td><td class="n">34 → <b>34</b></td><td class="n">0.0 → <b>0.0</b></td></tr>
+</table></div>
+<ul>
+<li><b>Fluid:</b> joints move along smooth monotone splines through the keyframes. Motion stops only where it really turns or holds. Contact changes, landings and lift-offs blend over fixed times (0.1–0.3 s), however close the model put its keyframes. Rendered at 60 fps (same render time, +30 % file size).</li>
+<li><b>Placement:</b> the trunk and feet use the drawn shapes for contact (ellipsoids, not fat spheres). The body rests on its contacts without passing through the floor. Planted hands lie flat at the wrist. Feet stand on their soles, toes or edges as posed. Kneeling shins lie on the floor. Free arms, legs and the head rest on the floor instead of lifting the body.</li>
+<li><b>Physics:</b> jumps are ballistic (the model gives the apex height, gravity gives the flight time). Feet only change their spot while airborne, or by stepping (lift, arc, land); a stepping foot keeps clear of the floor. The centre of mass stays over the feet when standing (shifting to the standing foot during a step), and under the hands when hanging.</li>
+<li><b>Still flagged:</b> a few cm of knee drag as a bird-dog knee lifts; Haiku's cat-cow and its very fast jumping-jack arms (the spec's tempo); one lunge whose spec keeps both feet as contacts while a foot is in the air.</li>
+</ul>
+<div class="trio">
+<figure><video src="ba/lunge-before.mp4" autoplay muted loop playsinline></video><figcaption>Lunge (Sonnet), before: the stepping foot slid 1.5 m along the floor</figcaption></figure>
+<figure><video src="ba/lunge-after.mp4" autoplay muted loop playsinline></video><figcaption>After: steps back, kneels, steps forward</figcaption></figure>
+<figure><video src="ba/jacks-before.mp4" autoplay muted loop playsinline></video><figcaption>Jumping jacks (Opus), before: stop-and-go at every keyframe, feet sliding</figcaption></figure>
+<figure><video src="ba/jacks-after.mp4" autoplay muted loop playsinline></video><figcaption>After: flowing arms, feet land in place</figcaption></figure>
+<figure><video src="ba/bridge-before.mp4" autoplay muted loop playsinline></video><figcaption>Glute bridge (Opus), before: shoulders hovering 14 cm</figcaption></figure>
+<figure><video src="ba/bridge-after.mp4" autoplay muted loop playsinline></video><figcaption>After: shoulders, head and feet on the mat</figcaption></figure>
+</div>
 </div>
 
 <h2>Scores and cost</h2>
@@ -72,8 +97,8 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 
 <h2>Limits and next steps</h2>
 <div class="card"><ul>
-<li>A mannequin, not a person: no hands with fingers, no face, no muscles. It reads well on a phone, but it's a diagram, not a coach.</li>
-<li>No real physics: balance and contacts are solved geometrically. Fast ballistic moves (burpees, kettlebell swings with momentum) and locomotion (inchworm walkout) need more work.</li>
+<li>A mannequin, not a person: no hands with fingers, no face, no muscles. Grips (palms forward or back) are not shown. It reads well on a phone, but it's a diagram, not a coach.</li>
+<li>No full dynamics: balance, contacts, jumps and steps are solved geometrically and ballistically, not by a physics engine. Momentum moves (kettlebell swings, burpees) and locomotion (inchworm walkout) need more work.</li>
 <li>Static holds (side plank) need an invented movement or they barely change.</li>
 <li>To ship: keep the spec doc as a cached system prompt, call Haiku or Sonnet once per catalog entry, run <code>exloop check</code>, render, and let a vision model (or the curator) reject bad loops. Optionally one correction round with the rendered strip.</li>
 </ul></div>
